@@ -1,0 +1,186 @@
+SELECT
+    COUNT (job_id),
+CASE
+    WHEN job_location = 'Anywhere' THEN 'Remote'
+    WHEN job_location = 'New York, NY' THEN 'Local'
+    ELSE 'Onsite'
+    END AS location_category
+FROM
+    job_postings_fact
+WHERE   
+    job_title_short = 'Data Analyst'
+GROUP BY
+    location_category
+
+--SUBSQUERIES--
+SELECT 
+    company_id,
+    name as company_name
+FROM company_dim
+WHERE company_id IN (
+SELECT
+    company_id
+FROM
+    job_postings_fact
+WHERE
+    job_no_degree_mention = TRUE
+ORDER BY company_id)
+
+SELECT
+    company_id
+FROM
+    job_postings_fact
+WHERE
+    job_no_degree_mention = TRUE
+
+---CTE---
+WITH company_job_count AS (
+    SELECT
+        company_id,
+        COUNT(*) AS total_jobs
+    FROM
+        job_postings_fact
+    GROUP BY
+        company_id)
+
+SELECT
+    company_dim.name as company_name,
+    company_job_count.total_jobs
+FROM
+    company_dim
+LEFT JOIN  
+    company_job_count
+    ON company_job_count.company_id = company_dim.company_id
+ORDER BY
+    total_jobs DESC;
+
+--SIMPLE WAY--
+SELECT
+    company_dim.name,
+    COUNT(job_postings_fact.company_id) as job_count
+FROM
+    job_postings_fact
+LEFT JOIN company_dim
+    ON job_postings_fact.company_id = company_dim.company_id
+GROUP BY
+    job_postings_fact.company_id, company_dim.name
+ORDER BY
+    job_count DESC
+
+SELECT
+    skills_job_dim.skill_id,
+    COUNT(skills_job_dim.skill_id) as most_skills
+FROM
+    job_postings_fact
+LEFT JOIN skills_job_dim
+    ON job_postings_fact.job_id = skills_job_dim.job_id
+GROUP BY 
+    skills_job_dim.skill_id
+ORDER BY
+most_skills DESC;
+
+--practice problem 1--
+SELECT
+    skills_dim.skills,
+    top_skills.most_skills,
+    company_dim.name
+FROM
+    (SELECT
+    skills_job_dim.skill_id,
+    COUNT(skills_job_dim.skill_id) as most_skills
+FROM
+    job_postings_fact
+LEFT JOIN skills_job_dim
+    ON job_postings_fact.job_id = skills_job_dim.job_id
+GROUP BY 
+    skills_job_dim.skill_id
+ORDER BY
+most_skills DESC
+LIMIT 5
+) AS top_skills
+LEFT JOIN skills_dim
+ON top_skills.skill_id = skills_dim.skill_id
+
+--practice problem 1 expert--
+SELECT
+    company_dim.name,
+    skills_dim.skills,
+    COUNT(*) AS skill_count
+FROM job_postings_fact
+LEFT JOIN skills_job_dim
+    ON job_postings_fact.job_id = skills_job_dim.job_id
+LEFT JOIN skills_dim
+    ON skills_job_dim.skill_id = skills_dim.skill_id
+LEFT JOIN company_dim
+    ON job_postings_fact.company_id = company_dim.company_id
+GROUP BY
+    company_dim.name,
+    skills_dim.skills
+ORDER BY
+    skill_count DESC;
+
+--practice problem 2--
+SELECT
+    job_postings_fact.company_id,
+    COUNT(job_postings_fact.job_id) AS job_count
+FROM
+    job_postings_fact
+GROUP BY
+    job_postings_fact.company_id
+
+SELECT
+    company_job_count.company_id,
+        company_dim.name,
+    company_job_count.job_count,
+    CASE
+        WHEN job_count < 10 THEN 'SMALL'
+        WHEN job_count BETWEEN 10 AND 50 THEN 'MEDIUM'
+        ELSE 'LARGE'
+        END AS job_open
+FROM
+    (SELECT
+    job_postings_fact.company_id,
+    COUNT(job_postings_fact.job_id) AS job_count
+FROM
+    job_postings_fact
+GROUP BY
+    job_postings_fact.company_id
+) AS company_job_count
+LEFT JOIN company_dim
+    ON company_job_count.company_id = company_dim.company_id
+ORDER BY
+job_count DESC;
+
+WITH job_remote AS (
+SELECT
+    job_id,
+    job_title_short,
+    CASE
+    WHEN job_location = 'Anywhere' THEN 'REMOTE'
+    ELSE 'ONSITE'
+    END AS job_type
+FROM
+    job_postings_fact
+)
+
+SELECT
+    skills_dim.skill_id,
+    skills_dim.skills,
+    COUNT(skills_dim.skill_id) AS skills_count
+FROM 
+    job_remote
+LEFT JOIN 
+    skills_job_dim
+ON job_remote.job_id = skills_job_dim.job_id
+LEFT JOIN  
+    skills_dim
+ON skills_job_dim.skill_id = skills_dim.skill_id
+WHERE
+    job_remote.job_type = 'REMOTE'
+    AND job_title_short = 'Data Analyst'
+GROUP BY 
+    skills_dim.skill_id,
+    skills_dim.skills
+ORDER BY
+    skills_count DESC
+LIMIT 5;
